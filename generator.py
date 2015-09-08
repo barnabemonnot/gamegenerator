@@ -4,6 +4,7 @@ import itertools
 import random as rd
 import gambit
 import gambit.nash
+from decimal import *
 
 # Game A represented as array of payoff matrices (one per player)
 # Payoff matrices are multidimensional arrays (as many dimensions as there are players)
@@ -41,11 +42,10 @@ def parseGame(A):
 def mixedNashEquilibria(A):
     # Returns all mixed NE of game A
     (shape, num_players, pure_moves) = parseGame(A)
-    print shape[1:]
     g = gambit.new_table(list(shape[1:]))
     for move in pure_moves:
         for player in range(0, num_players):
-            g[tuple(move)][player] = A[(player,)+tuple(move)]
+            g[tuple(move)][player] = Decimal(A[(player,)+tuple(move)])
     solver = gambit.nash.ExternalEnumMixedSolver()
     a = solver.solve(g)
     ne = []
@@ -95,7 +95,7 @@ def getCorrelatedEquilibria(A1, A2):
     cost_1 = { (x, y): A1[x-1,y-1] for x in range(1,a+1) for y in range(1,b+1) }
     cost_2 = { (x, y): A2[x-1,y-1] for x in range(1,a+1) for y in range(1,b+1) }
     
-    printconstr = False
+    printconstr = 0
     p = {}
     for profile in profiles:
         p[profile] = m.addVar(name=('p(%d,%d)' % profile), obj=(cost_1[profile]+cost_2[profile]))
@@ -108,7 +108,7 @@ def getCorrelatedEquilibria(A1, A2):
        for k in range(1, a+1):
            if i != k:
                m.addConstr(quicksum(p[profile]*cost_1[profile] for profile in profiles.select(i,'*')) <= quicksum(p[profiles.select(i,'*')[t]] * cost_1[profiles.select(k,'*')[t]] for t in range(0,b)), name='p1constr'+str(i)+'->'+str(k))
-               if printconstr:
+               if printconstr == 1:
                    print '--------------------------------------------------------------'
                    print 'i = %d, k = %d' % (i, k)
                    print quicksum(p[profile]*cost_1[profile] for profile in profiles.select(i,'*'))
@@ -118,7 +118,7 @@ def getCorrelatedEquilibria(A1, A2):
        for l in range(1, b+1):
            if j != l:
                m.addConstr(quicksum(p[profile]*cost_2[profile] for profile in profiles.select('*',j)) <= quicksum(p[profiles.select('*',j)[t]] * cost_2[profiles.select('*',l)[t]] for t in range(0,a)), name='p2constr'+str(j)+'->'+str(l))
-               if printconstr:
+               if printconstr == 1:
                    print '--------------------------------------------------------------'
                    print 'j = %d, l = %d' % (j, l)
                    print quicksum(p[profile]*cost_2[profile] for profile in profiles.select('*',j))
@@ -138,7 +138,7 @@ def getCorrelatedEquilibria(A1, A2):
     else:
         return (0, 0)
 
-def socialCost(A, eq):
+def getSocialCost(A, eq):
     (shape, num_players, pure_moves) = parseGame(A)
     sc = 0
     for move in pure_moves:
@@ -146,8 +146,8 @@ def socialCost(A, eq):
         cost = 0
         for player in range(0, num_players):
             mult *= eq[player][move[player]]
-            cost = A[(player,)+tuple(move)]
-        sc += mult * cost
+            cost += A[(player,)+tuple(move)]
+        sc = sc + mult * cost
     return sc
 
 def twoPlayersNashEquilibria(A1, A2):
@@ -170,7 +170,20 @@ def twoPlayersGetSocialCost(A1, A2, eq):
     cost = np.dot(np.dot(eq[[0,1]],A1),eq[[2,3]])+np.dot(np.dot(eq[[0,1]],A2),eq[[2,3]])
     return cost
 
-def generateRandomGame():
+def generateRandomGame(num_players, strategies):
+    return np.random.random_sample((num_players,)+tuple(strategies))
+
+def reversePayoff(A):
+    max_payoff = np.amax(A)
+    min_payoff = np.amin(A)
+    (shape, num_players, pure_moves) = parseGame(A)
+    new_A = np.copy(A)
+    for move in pure_moves:
+        for player in range(0, num_players):
+            new_A[(player,)+tuple(move)] = -A[(player,)+tuple(move)]
+    return new_A   
+
+def generateRandomGame2x2():
     A1 = np.array([[rd.random(), rd.random()], [rd.random(), rd.random()]])
     A2 = np.array([[rd.random(), rd.random()], [rd.random(), rd.random()]])
     return (A1, A2)
