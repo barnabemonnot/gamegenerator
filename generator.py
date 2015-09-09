@@ -150,13 +150,13 @@ def getCoarseCorrelatedEquilibria(A1, A2):
     cost_1 = { (x, y): A1[x,y] for x in range(0,a) for y in range(0,b) }
     cost_2 = { (x, y): A2[x,y] for x in range(0,a) for y in range(0,b) }
     
-    printconstr = 0
+    printconstr = 1
     p = {}
     for profile in profiles:
         p[profile] = m.addVar(name=('p(%d,%d)' % profile), obj=(cost_1[profile]+cost_2[profile]))
     
     m.update()
-    m.setParam('OutputFlag', False)
+    #m.setParam('OutputFlag', False)
     m.setParam('FeasibilityTol', 1e-9)
     
     for i in range(0, a):
@@ -175,7 +175,7 @@ def getCoarseCorrelatedEquilibria(A1, A2):
        for l in range(0, b):
            if j != l:
                lhs = quicksum(p[profile]*cost_2[profile] for profile in profiles.select('*','*'))
-               rhs = quicksum(quicksum(p[profile] for profile in profiles.select(t,'*')) * cost_2[profiles.select('*',l)[t-1]] for t in range(0,a))
+               rhs = quicksum(quicksum(p[profile] for profile in profiles.select(t,'*')) * cost_2[profiles.select('*',l)[t]] for t in range(0,a))
                m.addConstr(lhs <= rhs, name='p2constr'+str(j)+'->'+str(l))
                if printconstr == 1:
                    print '--------------------------------------------------------------'
@@ -187,7 +187,7 @@ def getCoarseCorrelatedEquilibria(A1, A2):
     m.addConstr(quicksum(p[profile] for profile in profiles) == 1, name='proba')
     
     m.optimize()
-
+    print m.getVars()
     resp = np.array([v.x for v in m.getVars()])
     resobj = m.objVal
     
