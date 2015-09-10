@@ -26,6 +26,11 @@ def cartesian(arrays, out=None):
         for j in xrange(1, arrays[0].size):
             out[j*m:(j+1)*m,1:] = out[0:m,1:]
     return out
+    
+def arrayWithoutElement(A, i):
+    mask = np.ones(A.shape,dtype=bool)
+    mask[i]=0
+    return A[mask]
 
 def parseGame(A):
     # Returns shape (number of players, number of strategies of P1, number of strategies of P2...)
@@ -42,12 +47,7 @@ def parseGame(A):
 def selectMoves(pure_moves, player, strat):
     return [move for move in pure_moves if move[player] == strat]
 
-def arrayWithoutElement(A, i):
-    mask = np.ones(A.shape,dtype=bool)
-    mask[i]=0
-    return A[mask]
-
-def mixedNashEquilibria(A):
+def getMixedNashEquilibria(A):
     # Returns all mixed NE of game A
     (shape, num_players, pure_moves) = parseGame(A)
     g = gambit.new_table(list(shape[1:]))
@@ -67,7 +67,12 @@ def mixedNashEquilibria(A):
         ne.append(new_eq)
     return ne
     
-def pureNashEquilibria(A):
+def getSocialCostOfBestNE(A):
+    rev_A = reversePayoff(A)
+    eqs = getMixedNashEquilibria(rev_A)
+    return min([getSocialCost(A, eq) for eq in eqs])
+    
+def getPureNashEquilibria(A):
     # Needs more testing
     (shape, num_players, pure_moves) = parseGame(A)
     ne = []
