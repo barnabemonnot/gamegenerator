@@ -42,6 +42,11 @@ def parseGame(A):
 def selectMoves(pure_moves, player, strat):
     return [move for move in pure_moves if move[player] == strat]
 
+def arrayWithoutElement(A, i):
+    mask = np.ones(A.shape,dtype=bool)
+    mask[i]=0
+    return A[mask]
+
 def mixedNashEquilibria(A):
     # Returns all mixed NE of game A
     (shape, num_players, pure_moves) = parseGame(A)
@@ -122,6 +127,49 @@ def getCorrelatedEquilibria(A):
                         print lhs
                         print '<='
                         print rhs
+                        
+    m.addConstr(quicksum(p[tuple(move)] for move in pure_moves) == 1, name='proba')
+    
+    m.optimize()
+
+    resp = np.array([v.x for v in m.getVars()])
+    resobj = m.objVal
+    
+    slack = m.getAttr(GRB.attr.Slack, m.getConstrs())
+    if np.product([x >= 0 for x in slack]) == 1:
+        return (resobj, resp)
+    else:
+        return (0, 0)
+        
+def getCoarseCorrelatedEquilibriaGen(A):
+    (shape, num_players, pure_moves) = parseGame(A)
+    p = {}
+    m = Model('correlated')
+    sums = np.sum(A, axis=0)
+    for move in pure_moves:
+        s = sums[tuple(move)]
+        name = ('p%s' % str(tuple(move)))
+        p[tuple(move)] = m.addVar(name=name, obj=s)
+        
+    m.update()
+    m.setParam('OutputFlag', False)
+    m.setParam('FeasibilityTol', 1e-9)
+    
+    printconstr = 0
+    
+    for player in range(0, num_players):
+        num_strat = shape[player+1]
+        for strat in range(0, num_strat):
+            responses = selectMoves(pure_moves, player, strat)
+            lhs = quicksum(p[tuple(move)]*A[(player,)+tuple(move)] for move in pure_moves)
+            rhs = quicksum(quicksum(p[tuple(move)] for move in pure_moves if (arrayWithoutElement(move, player) == arrayWithoutElement(responses[t], player)).all())*A[(player,)+tuple(responses[t])] for t in range(0, len(responses)))
+            m.addConstr(lhs <= rhs, name='p'+str(player)+'constr'+str(strat))
+            if printconstr == 1:
+                print '--------------------------------------------------------------'
+                print 'Player %d, strat = %d' % (player, strat)
+                print lhs
+                print '<='
+                print rhs
                         
     m.addConstr(quicksum(p[tuple(move)] for move in pure_moves) == 1, name='proba')
     
