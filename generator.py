@@ -39,6 +39,9 @@ def parseGame(A):
     pure_moves = cartesian(arrays)
     return (shape, num_players, pure_moves)
 
+def selectMoves(pure_moves, player, strat):
+    return [move for move in pure_moves if move[player] == strat]
+
 def mixedNashEquilibria(A):
     # Returns all mixed NE of game A
     (shape, num_players, pure_moves) = parseGame(A)
@@ -87,49 +90,40 @@ def pureNashEquilibria(A):
             ne.append(new_ne)
     print ne
 
-def getCorrelatedEquilibria(A1, A2):
-    a = np.size(A1,0)
-    b = np.size(A1,1)
-    m = Model('correlated')
-    profiles = tuplelist([(x, y) for x in range(0,a) for y in range(0,b)])
-    cost_1 = { (x, y): A1[x,y] for x in range(0,a) for y in range(0,b) }
-    cost_2 = { (x, y): A2[x,y] for x in range(0,a) for y in range(0,b) }
-    
-    printconstr = 0
+def getCorrelatedEquilibria(A):
+    (shape, num_players, pure_moves) = parseGame(A)
     p = {}
-    for profile in profiles:
-        p[profile] = m.addVar(name=('p(%d,%d)' % profile), obj=(cost_1[profile]+cost_2[profile]))
-    
+    m = Model('correlated')
+    sums = np.sum(A, axis=0)
+    for move in pure_moves:
+        s = sums[tuple(move)]
+        name = ('p%s' % str(tuple(move)))
+        p[tuple(move)] = m.addVar(name=name, obj=s)
+        
     m.update()
     m.setParam('OutputFlag', False)
     m.setParam('FeasibilityTol', 1e-9)
     
-    for i in range(0, a):
-       for k in range(0, a):
-           if i != k:
-               lhs = quicksum(p[profile]*cost_1[profile] for profile in profiles.select(i,'*'))
-               rhs = quicksum(p[profiles.select(i,'*')[t]] * cost_1[profiles.select(k,'*')[t]] for t in range(0,b))
-               m.addConstr(lhs <= rhs, name='p1constr'+str(i)+'->'+str(k))
-               if printconstr == 1:
-                   print '--------------------------------------------------------------'
-                   print 'i = %d, k = %d' % (i, k)
-                   print lhs
-                   print '<='
-                   print rhs
-    for j in range(0, b):
-       for l in range(0, b):
-           if j != l:
-               lhs = quicksum(p[profile]*cost_2[profile] for profile in profiles.select('*',j))
-               rhs = quicksum(p[profiles.select('*',j)[t]] * cost_2[profiles.select('*',l)[t]] for t in range(0,a))
-               m.addConstr(lhs <= rhs, name='p2constr'+str(j)+'->'+str(l))
-               if printconstr == 1:
-                   print '--------------------------------------------------------------'
-                   print 'j = %d, l = %d' % (j, l)
-                   print lhs
-                   print '<='
-                   print rhs
-               
-    m.addConstr(quicksum(p[profile] for profile in profiles) == 1, name='proba')
+    printconstr = 0
+    
+    for player in range(0, num_players):
+        num_strat = shape[player+1]
+        for strat in range(0, num_strat):
+            for dev in range(0, num_strat):
+                if strat != dev:
+                    responses = selectMoves(pure_moves, player, strat)
+                    responses_dev = selectMoves(pure_moves, player, dev)
+                    lhs = quicksum(p[tuple(move)]*A[(player,)+tuple(move)] for move in responses)
+                    rhs = quicksum(p[tuple(responses[t])]*A[(player,)+tuple(responses_dev[t])] for t in range(0, len(responses)))
+                    m.addConstr(lhs <= rhs, name='p'+str(player)+'constr'+str(strat)+'->'+str(dev))
+                    if printconstr == 1:
+                        print '--------------------------------------------------------------'
+                        print 'Player %d, strat = %d, dev = %d' % (player, strat, dev)
+                        print lhs
+                        print '<='
+                        print rhs
+                        
+    m.addConstr(quicksum(p[tuple(move)] for move in pure_moves) == 1, name='proba')
     
     m.optimize()
 
@@ -150,13 +144,13 @@ def getCoarseCorrelatedEquilibria(A1, A2):
     cost_1 = { (x, y): A1[x,y] for x in range(0,a) for y in range(0,b) }
     cost_2 = { (x, y): A2[x,y] for x in range(0,a) for y in range(0,b) }
     
-    printconstr = 1
+    printconstr = 0
     p = {}
     for profile in profiles:
         p[profile] = m.addVar(name=('p(%d,%d)' % profile), obj=(cost_1[profile]+cost_2[profile]))
     
     m.update()
-    #m.setParam('OutputFlag', False)
+    m.setParam('OutputFlag', False)
     m.setParam('FeasibilityTol', 1e-9)
     
     for i in range(0, a):
@@ -187,7 +181,7 @@ def getCoarseCorrelatedEquilibria(A1, A2):
     m.addConstr(quicksum(p[profile] for profile in profiles) == 1, name='proba')
     
     m.optimize()
-    print m.getVars()
+
     resp = np.array([v.x for v in m.getVars()])
     resobj = m.objVal
     
