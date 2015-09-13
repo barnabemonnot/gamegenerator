@@ -6,8 +6,8 @@ import gambit
 import gambit.nash
 from decimal import *
 
-# Game A represented as array of payoff matrices (one per player)
-# Payoff matrices are multidimensional arrays (as many dimensions as there are players)
+# Game A represented as array of cost matrices (one per player)
+# Cost matrices are multidimensional arrays (as many dimensions as there are players)
 
 def cartesian(arrays, out=None):
     # Returns cartesian product of arrays
@@ -47,13 +47,17 @@ def parseGame(A):
 def selectMoves(pure_moves, player, strat):
     return [move for move in pure_moves if move[player] == strat]
 
-def getMixedNashEquilibria(A):
-    # Returns all mixed NE of game A
+def getMixedNashEquilibria(A, cost=True):
+    # Returns all mixed NE of cost game A
+    if cost:
+        mat = reversePayoff(A)
+    else:
+        mat = A
     (shape, num_players, pure_moves) = parseGame(A)
     g = gambit.new_table(list(shape[1:]))
     for move in pure_moves:
         for player in range(0, num_players):
-            g[tuple(move)][player] = Decimal(A[(player,)+tuple(move)])
+            g[tuple(move)][player] = Decimal(mat[(player,)+tuple(move)])
     solver = gambit.nash.ExternalEnumMixedSolver()
     a = solver.solve(g)
     ne = []
@@ -67,10 +71,9 @@ def getMixedNashEquilibria(A):
         ne.append(new_eq)
     return ne
     
-def getSocialCostOfBestNE(A):
-    rev_A = reversePayoff(A)
-    eqs = getMixedNashEquilibria(rev_A)
-    return min([getSocialCost(A, eq) for eq in eqs])
+def getBestAndWorstNE(A, eqs):
+    scs = [getSocialCost(A, eq) for eq in eqs]
+    return (min(scs), max(scs))
     
 def getPureNashEquilibria(A):
     # Needs more testing
@@ -115,7 +118,7 @@ def getCorrelatedEquilibria(A, coarse=False, best=True):
         p[tuple(move)] = m.addVar(name=name, obj=s)
         
     m.update()
-    m.setParam('OutputFlag', True)
+    m.setParam('OutputFlag', False)
     m.setParam('FeasibilityTol', 1e-9)
     
     printconstr = False
@@ -163,7 +166,7 @@ def getCorrelatedEquilibria(A, coarse=False, best=True):
     if np.product([x >= 0 for x in slack]) == 1:
         return (resobj, resp)
     else:
-        return None
+        return (None, None)
 
 def getSocialCost(A, eq):
     (shape, num_players, pure_moves) = parseGame(A)
