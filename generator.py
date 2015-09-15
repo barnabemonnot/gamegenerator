@@ -1,7 +1,6 @@
 from gurobipy import *
 import numpy as np
 import itertools
-import random as rd
 import gambit
 import gambit.nash
 from decimal import *
@@ -48,7 +47,7 @@ def selectMoves(pure_moves, player, strat):
     return [move for move in pure_moves if move[player] == strat]
 
 def getMixedNashEquilibria(A, cost=True):
-    # Returns all mixed NE of cost game A
+    # Returns all mixed NE of cost game A (2 players only)
     if cost:
         mat = reversePayoff(A)
     else:
@@ -104,6 +103,7 @@ def getPureNashEquilibria(A):
     print ne
 
 def getCorrelatedEquilibria(A, coarse=False, best=True):
+    # Works for n players
     (shape, num_players, pure_moves) = parseGame(A)
     p = {}
     m = Model('correlated')
